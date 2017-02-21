@@ -5,8 +5,20 @@ Created on Fri Feb 17 14:10:40 2017
 @author: daehyun
 """
 
-from struct import Struct, error
+from struct import error
+from struct import Struct as OrigStruct
 from numba import jit
+from functools import reduce
+
+
+class Struct(OrigStruct):
+    def __init__(self, fmt):
+        super().__init__(fmt)
+        self.__entries = len(self.unpack(b'\0' * self.size))
+
+    @property
+    def entries(self):
+        return self.__entries
 
 
 @jit
@@ -39,40 +51,6 @@ def read(file, struct, *others, loop=1):
     raise ValueError('loop must be 0 or larger int!')
 
 
-def genWriter(file, struct, *others, loop=1):
-    def writer(data=None, *dtail):
-        if loop == 0:
-            if data is not None:
-                ValueError('loop does not match with data!')
-            return None
-        if len(others) == 0:
-            if loop == 1:
-                file.write(struct.pack(*data))
-                return None
-            # if not loop == len(data):
-            #     raise ValueError('loop does not match with data!')
-            else:
-                for d in data:
-                    file.write(struct.pack(*d))
-                return None
-        else:
-            if loop == 1:
-                w = genWriter(file, struct)
-                w(data)
-                wother = genWriter(file, *others, loop=data[-1])
-                wother(*dtail)
-                return None
-            zipped = tuple(zip(data, dtail))
-            if not loop == len(zipped):
-                raise ValueError('loop does not match with data!')
-            else:
-                for d, t in zipped:
-                    w = genWriter(file, struct, *others)
-                    w(d, *t)
-                return None
-    return writer
-
-
 class Reader:
     def __init__(self, filename, *fmts):
         self.__file = open(filename, 'br')
@@ -103,3 +81,37 @@ class Reader:
             return self.unpacked
         except error:
             raise StopIteration
+
+
+def easyWrite(file, struct, *data, loop=1):
+    if not loop >= 0:
+        raise ValueError("'loop' have to be 0 or larger!")
+    for i in range(loop):
+        slice = data[i*struct.entries:(i+1)*struct.entries]
+        file.write(struct.pack(*slice))
+    return data[loop*struct.entries:]
+
+
+def genWriter(file, struct, *others, loop=1):
+    def writer(*data):
+        if len(others) == 0:
+            return easyWrite(file, struct, *data, loop=loop)
+        else:
+            if loop==0:
+                return data
+            elif loop == 1:
+                whead = genWriter(file, struct)
+                dhead = data[:struct.entries]
+                whead(*dhead)
+                wtail = genWriter(file, *others, loop=dhead[-1])
+                dtail = data[struct.entries:]
+                return wtail(*dtail)
+            elif loop > 1:
+                tail = data
+                for _ in range(loop):
+                    w = genWriter(file, struct, *others)
+                    tail = w(*tail)
+                return tail
+            else:
+                raise ValueError("'loop' have to be 0 or larger!")
+    return writer

@@ -28,10 +28,13 @@ from numpy import array, uint32, uint16, float64
 class Data:
     __slots__ = ['__tag', '__hits', '__x', '__y', '__t', '__method']
     
-    def __init__(self, tag, hits, x=[], y=[], t=[], method=[], filter=None):
+    def __init__(self, tag, hits, x=None, y=None, t=None, method=None, filter=None):
+        if x is None: x = []
+        if y is None: y = []
+        if t is None: t = []
+        if method is None: method = []
         self.__tag = uint32(tag)
-        ret = self.__filter(*self.__reshape(hits, x, y, t, method), 
-                            filter=filter)
+        ret = self.__filter(*self.__reshape(hits, x, y, t, method), filter=filter)
         self.__hits, self.__x, self.__y, self.__t, self.__method = ret
     
     def __reshape(self, hits, x, y, t, method):
@@ -91,6 +94,9 @@ class Deserializer(Reader):
     def __init__(self, filename, filter=None):
         super().__init__(filename, *self.fmts)
         self.__filter = filter
+
+    def __del__(self):
+        super().__del__()
         
     @property
     def fmts(self):
