@@ -102,5 +102,5 @@ class Hist2D:
         return (*self.centers, self.hist)
 
     def fill(self, xarr, yarr, **kwargs):
-        hist, _, _ = histogram2d(xarr, yarr, **kwargs)
+        hist, _, _ = histogram2d(xarr, yarr, bins=self.edges, **kwargs)
         self.__hist += hist.T
