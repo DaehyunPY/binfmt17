@@ -74,7 +74,7 @@ class Hist2D:
             [], [], 
             range=self.range, 
             bins=(xbins, ybins))
-        self.__hist = array(hist, dtype=float32)
+        self.__hist = array(hist, dtype=float32).T
         self.__xedges = array(xedges, dtype=float32)
         self.__yedges = array(yedges, dtype=float32)
 
@@ -143,4 +143,4 @@ class Hist2D:
     def fill(self, xarr, yarr, normed=False, weights=None):
         hist, _, _ = histogram2d(xarr, yarr, range=self.range, bins=self.edges,
                                  normed=normed, weights=weights)
-        self.__hist += hist
+        self.__hist += hist.T
