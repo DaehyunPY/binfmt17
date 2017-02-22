@@ -6,26 +6,15 @@ Created on Fri Feb 17 14:10:40 2017
 """
 
 from numpy import histogram, histogram2d, meshgrid, array, float32
-# from numba import jit, jitclass, types
+from warnings import warn 
 
 
-# @jitclass(dict(
-#     __fr=types.float32,
-#     __to=types.float32,
-#     __edges=types.float32[:],
-#     __hist=types.float32[:]
-# ))
 class Hist1D:
-    def __init__(self, fr, to, bins):
-        self.__fr = fr
-        self.__to = to
-        hist, edges = histogram([], range=self.range, bins=bins)
+    def __init__(self, *args, **kwargs):
+        warn('Watch out args! This class have been modified!')
+        hist, edges = histogram([], *args, **kwargs)
         self.__hist = array(hist, dtype=float32)
         self.__edges = array(edges, dtype=float32)
-
-    @property
-    def range(self):
-        return self.__fr, self.__to
 
     @property
     def edges(self):
@@ -49,38 +38,18 @@ class Hist1D:
     def xy(self):
         return self.centers, self.hist
 
-    def fill(self, arr, normed=False, weights=None, density=None):
-        hist, _ = histogram(arr, range=self.range, bins=self.edges,
-                            normed=normed, weights=weights, density=density)
+    def fill(self, arr, **kwargs):
+        hist, _ = histogram(arr, bins=self.edges, **kwargs)
         self.__hist += hist
 
 
-# @jitclass(dict(
-#     __xfr=types.float32,
-#     __xto=types.float32,
-#     __xedges=types.float32[:],
-#     __yfr=types.float32,
-#     __yto=types.float32,
-#     __yedges=types.float32[:],
-#     __hist=types.float32[:, :],
-# ))
 class Hist2D:
-    def __init__(self, xfr, xto, xbins, yfr, yto, ybins):
-        self.__xfr = xfr
-        self.__xto = xto
-        self.__yfr = yfr
-        self.__yto = yto
-        hist, xedges, yedges = histogram2d(
-            [], [], 
-            range=self.range, 
-            bins=(xbins, ybins))
+    def __init__(self, *args, **kwargs):
+        warn('Watch out args! This class have been modified!')
+        hist, xedges, yedges = histogram2d([], [], *args, **kwargs)
         self.__hist = array(hist, dtype=float32).T
         self.__xedges = array(xedges, dtype=float32)
         self.__yedges = array(yedges, dtype=float32)
-
-    @property
-    def xrange(self):
-        return self.__xfr, self.__xto
 
     @property
     def xedges(self):
@@ -91,20 +60,12 @@ class Hist2D:
         return (self.xedges[:-1]+self.xedges[1:])/2.0
     
     @property
-    def yrange(self):
-        return self.__yfr, self.__yto
-
-    @property
     def yedges(self):
         return self.__yedges
 
     @property
     def ycenters(self):
         return (self.yedges[:-1]+self.yedges[1:])/2.0
-
-    @property
-    def range(self):
-        return self.xrange, self.yrange
 
     @property
     def edges(self):
@@ -140,7 +101,6 @@ class Hist2D:
     def xyz(self):
         return (*self.centers, self.hist)
 
-    def fill(self, xarr, yarr, normed=False, weights=None):
-        hist, _, _ = histogram2d(xarr, yarr, range=self.range, bins=self.edges,
-                                 normed=normed, weights=weights)
+    def fill(self, xarr, yarr, **kwargs):
+        hist, _, _ = histogram2d(xarr, yarr, **kwargs)
         self.__hist += hist.T
