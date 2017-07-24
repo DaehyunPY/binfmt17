@@ -63,7 +63,7 @@ class HitData:
   
 
 def genData(*Data):
-    print("It will be deleted from this package!")
+    print("'genData' will be deleted from this package!")
     return dict(tag = (d.tag for d in Data),
                 hits = (d.hits for d in Data),
                 x = (d.x for d in Data),
