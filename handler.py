@@ -57,7 +57,13 @@ class Reader:
         self.__structs = [Struct(f) for f in fmts]
         self.current = 0
 
-    def __del__(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self):
         self.__file.close()
 
     @property
