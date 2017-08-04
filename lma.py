@@ -3,6 +3,8 @@ from struct import Struct
 from cytoolz import first, curry, pipe
 from cytoolz.curried import reduce, map
 from operator import add
+from os.path import getsize
+from abc import ABC, abstractmethod
 
 
 @curry
@@ -12,7 +14,21 @@ def read_bin(struct, buffer) -> iter:
     yield from struct.unpack(r)
 
 
-class LmaDeserializer:
+class Deserializer(ABC):
+    @abstractmethod
+    def __init__(self, buffer):
+        pass
+
+    @abstractmethod
+    def header_size(self) -> int:
+        return 0
+
+    @abstractmethod
+    def __call__(self, buffer) -> dict:
+        return {}
+
+
+class LmaDeserializer(Deserializer):
     """
     Deserializer for LMA format
     Example:
@@ -71,10 +87,10 @@ class LmaDeserializer:
         return self.header[9]
 
     @property
-    def channels(self) -> tuple(dict):
+    def channels(self) -> [dict]:
         return self.__channels
 
-    def __read_pulses(self, buffer) -> iter(ndarray):
+    def __read_pulses(self, buffer) -> [ndarray]:
         n = self.nsamples
         nans = curry(repeat, nan)
         for _ in range(first(self.__read_npulses(buffer))):
@@ -95,3 +111,64 @@ class LmaDeserializer:
                          map(nan_to_num),
                          reduce(add))
                     if ch is not None else None for ch in self.channels)}
+
+
+@curry
+class ReadWith:
+    """
+    Binary reader
+    Example:
+        LmaReader = ReadWith(LmaDeserializer)
+        with LmaReader(filename) as r:
+            for d in r:
+                print(d)
+                break
+    """
+    def __init__(self, deserializer: Deserializer.__init__, filename: str):
+        self.__size = getsize(filename)
+        self.__file = open(filename, 'br')
+        self.__current_bit = 0
+        self.__deserializer = deserializer(self.__file)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.__file.close()
+
+    @property
+    def deserializer(self) -> Deserializer:
+        return self.__deserializer
+
+    @property
+    def first_bit(self) -> int:
+        return self.deserializer.header_size
+
+    @property
+    def last_bit(self) -> int:
+        return self.__size
+
+    @property
+    def __current_bit(self) -> int:
+        return self.__file.tell()
+
+    @__current_bit.setter
+    def __current_bit(self, i):
+        self.__file.seek(i)
+
+    @property
+    def current_bit(self) -> int:
+        return self.__current_bit
+
+    def __iter__(self) -> iter:
+        self.__current_bit = self.first_bit
+        return self
+
+    def __next__(self) -> dict:
+        if not (self.current_bit < self.last_bit):
+            raise StopIteration
+        return self.deserializer(self.__file)
+
+LmaReader = ReadWith(LmaDeserializer)
+# HitReader = ReadWith(HitDeserializer)
+# BinReader = ReadWith(BinDeserializer)
