@@ -7,7 +7,6 @@ Created on Fri Feb 17 14:10:40 2017
 
 from .handler import Reader
 from numpy import array, uint32, uint16, float64
-from warnings import warn
 from collections import namedtuple
 
 
@@ -62,21 +61,6 @@ class HitData:
         return self.__method
   
 
-def genData(*Data):
-    print("'genData' will be deleted from this package!")
-    return dict(tag = (d.tag for d in Data),
-                hits = (d.hits for d in Data),
-                x = (d.x for d in Data),
-                y = (d.y for d in Data),
-                t = (d.t for d in Data),
-                method = (d.method for d in Data))
-
-
-def Data2Gen(*Data):
-    print("Do not use 'Data2Gen'! Redirecting to 'genData'")
-    return genData(*Data)
-
-
 class HitDeserializer(Reader):
     def __init__(self, filename, filter=None):
         super().__init__(filename, *self.fmts)
@@ -95,20 +79,11 @@ class HitDeserializer(Reader):
                     filter=self.__filter)
 
 
-class Deserializer(HitDeserializer):
-    def __init__(self, filename, filter=None):
-        warn("Do not use 'Deserializer'! Redirecting to 'HitDeserializer'")
-        super().__init__(filename, *self.fmts)
-        self.__filter = filter
-
-    def __del__(self):
-        super().__del__()
-
-
 class BinData(namedtuple(
     'BinData',
     'tag FEL_status FEL_shutter UV_shutter dump4 FEL_intensity delay_motor dump7 dump8 hits t x y')):
-    def __new__(cls, tag, FEL_status, FEL_shutter, UV_shutter, dump4, FEL_intensity, delay_motor, dump7, dump8, hits, t=None, x=None, y=None):
+    def __new__(cls, tag, FEL_status, FEL_shutter, UV_shutter, dump4, FEL_intensity, delay_motor, dump7, dump8, hits,
+                t=None, x=None, y=None):
         if t == None:
             t = ()
         if x == None:
