@@ -5,10 +5,11 @@ from cytoolz.curried import reduce, map
 from operator import add
 from os.path import getsize
 from abc import ABC, abstractmethod
+from typing import Iterator, Any, BinaryIO, Mapping, Sequence, Callable, Iterable
 
 
 @curry
-def read_bin(struct, buffer) -> iter:
+def read_bin(struct: Struct, buffer: BinaryIO) -> Iterator[Any]:
     s = struct.size
     r = buffer.read(s)
     yield from struct.unpack(r)
@@ -16,7 +17,7 @@ def read_bin(struct, buffer) -> iter:
 
 class Deserializer(ABC):
     @abstractmethod
-    def __init__(self, buffer):
+    def __init__(self, buffer: BinaryIO) -> None:
         pass
 
     @abstractmethod
@@ -24,7 +25,7 @@ class Deserializer(ABC):
         return 0
 
     @abstractmethod
-    def __call__(self, buffer) -> dict:
+    def __call__(self, buffer: BinaryIO) -> Mapping[str, Any]:
         return {}
 
 
@@ -45,7 +46,7 @@ class LmaDeserializer(Deserializer):
                 - (int16) = num of bytes
                 - (float64) = sample interval
                 - (int32) = num of samples
-                - round((float64), 100) = delay time
+                - (float64)
                 - (int16)
                 - (float64)
                 - (int16)
@@ -92,7 +93,7 @@ class LmaDeserializer(Deserializer):
             while buffer.tell() < last:
                 deserialized = deserialize(buffer)
     """
-    def __init__(self, buffer):
+    def __init__(self, buffer: BinaryIO) -> None:
         """
         Read header from buffer
         :param buffer: binary buffer
@@ -103,13 +104,13 @@ class LmaDeserializer(Deserializer):
             if ((self.used_channels >> i) & 0b1) == 1 else None
             for i in range(self.nchannels))
         self.__channels = tuple(
-            {'fullscale': ch[0], 'gain': ch[2], 'baseline': ch[3]}
+            {'fullscale': ch[0], 'offset': ch[1], 'gain': ch[2], 'baseline': ch[3]}
             if ch is not None else None
             for ch in channels)
-        self.__read_event = read_bin(Struct("=id"))
-        self.__read_npulses = read_bin(Struct("=h"))
-        self.__read_pulseinfo = read_bin(Struct("=ii"))
-        self.__read_pulse = curry(fromfile, dtype='int16')
+        self.__read_event: Callable = read_bin(Struct("=id"))
+        self.__read_npulses: Callable = read_bin(Struct("=h"))
+        self.__read_pulseinfo: Callable = read_bin(Struct("=ii"))
+        self.__read_pulse: Callable = curry(fromfile, dtype='int16')
 
     @property
     def header_size(self) -> int:
@@ -136,24 +137,26 @@ class LmaDeserializer(Deserializer):
         return self.__header[9]
 
     @property
-    def channels(self) -> [dict]:
+    def channels(self) -> Sequence[Mapping[str, Any]]:
         return self.__channels
 
-    def __read_pulses(self, buffer) -> [ndarray]:
+    def __read_pulses(self, buffer: BinaryIO) -> Iterator[ndarray]:
         n = self.nsamples
-        nans = curry(repeat, nan)
+        nans: Callable[int, Sequence[nan]] = curry(repeat, nan)
         for _ in range(first(self.__read_npulses(buffer))):
             n0, n1 = self.__read_pulseinfo(buffer)
             d = self.__read_pulse(buffer, count=n1)
             yield reduce(append, (nans(n0), d, nans(n-n0-n1)))
 
-    def __call__(self, buffer) -> dict:
+    def __call__(self, buffer: BinaryIO) -> Mapping[str, Any]:
         """
         Deserialize LMA file
         :param buffer: binary buffer
         :return: dict
         """
-        return {'tag': first(self.__read_event(buffer)),
+        event = self.__read_event(buffer)
+        return {'tag': event[0],
+                'horpos': event[1],
                 'channels': tuple(
                     pipe(self.__read_pulses(buffer),
                          map(lambda pulse: ch['gain']*(pulse-ch['baseline'])),
@@ -173,16 +176,16 @@ class ReadWith:
                 print(d)
                 break
     """
-    def __init__(self, deserializer: Deserializer.__init__, filename: str):
+    def __init__(self, deserializer: Callable[[BinaryIO], Deserializer], filename: str) -> None:
         self.__size = getsize(filename)
-        self.__file = open(filename, 'br')
+        self.__file: BinaryIO = open(filename, 'br')
         self.__current_bit = 0
         self.__deserializer = deserializer(self.__file)
 
     def __enter__(self):
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self) -> None:
         self.__file.close()
 
     @property
@@ -202,18 +205,18 @@ class ReadWith:
         return self.__file.tell()
 
     @__current_bit.setter
-    def __current_bit(self, i):
+    def __current_bit(self, i: int) -> None:
         self.__file.seek(i)
 
     @property
     def current_bit(self) -> int:
         return self.__current_bit
 
-    def __iter__(self) -> iter:
+    def __iter__(self) -> Iterable[Mapping[str, Any]]:
         self.__current_bit = self.first_bit
         return self
 
-    def __next__(self) -> dict:
+    def __next__(self) -> Mapping[str, Any]:
         if not (self.current_bit < self.last_bit):
             raise StopIteration
         return self.deserializer(self.__file)
