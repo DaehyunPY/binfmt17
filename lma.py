@@ -34,8 +34,8 @@ class LmaDeserializer(Deserializer):
     Data format:
         1. Header part
 
-            general     channel
-            ––––––– n * –––––––
+            general       channel
+            ––––––– + n * –––––––
 
             n is num of used channels
 
@@ -64,8 +64,8 @@ class LmaDeserializer(Deserializer):
 
         2. Event part
 
-            event     num of partial pulses     info of a partial pulse  a partial pulse
-            ––––– n * ––––––––––––––––––––– m * –––––––––––––––––––––––  –––––––––––––––
+            event         num of partial pulses         info of a partial pulse   a partial pulse
+            ––––– + n * ( ––––––––––––––––––––– + m * ( ––––––––––––––––––––––– + ––––––––––––––– ) )
 
             n is num of used channels
             m is num of partial pulses
