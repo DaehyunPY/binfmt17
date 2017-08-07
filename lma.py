@@ -22,11 +22,11 @@ class Deserializer(ABC):
 
     @abstractmethod
     def header_size(self) -> int:
-        return 0
+        pass
 
     @abstractmethod
     def __call__(self, buffer: BinaryIO) -> Mapping[str, Any]:
-        return {}
+        pass
 
 
 class LmaDeserializer(Deserializer):
@@ -98,6 +98,7 @@ class LmaDeserializer(Deserializer):
         Read header from buffer
         :param buffer: binary buffer
         """
+        super().__init__(buffer)
         self.__header = tuple(read_bin(Struct("=ihhdidhdhIIh"), buffer))
         channels = (
             tuple(read_bin(Struct("=hhdhhii"), buffer))
@@ -107,10 +108,10 @@ class LmaDeserializer(Deserializer):
             {'fullscale': ch[0], 'offset': ch[1], 'gain': ch[2], 'baseline': ch[3]}
             if ch is not None else None
             for ch in channels)
-        self.__read_event: Callable = read_bin(Struct("=id"))
-        self.__read_npulses: Callable = read_bin(Struct("=h"))
-        self.__read_pulseinfo: Callable = read_bin(Struct("=ii"))
-        self.__read_pulse: Callable = curry(fromfile, dtype='int16')
+        self.__read_event: Callable[[BinaryIO], Mapping[str, Any]] = read_bin(Struct("=id"))
+        self.__read_npulses: Callable[[BinaryIO], Mapping[str, Any]] = read_bin(Struct("=h"))
+        self.__read_pulseinfo: Callable[[BinaryIO], Mapping[str, Any]] = read_bin(Struct("=ii"))
+        self.__read_pulse: Callable[[BinaryIO], Mapping[str, Any]] = curry(fromfile, dtype='int16')
 
     @property
     def header_size(self) -> int:
@@ -142,7 +143,7 @@ class LmaDeserializer(Deserializer):
 
     def __read_pulses(self, buffer: BinaryIO) -> Iterator[ndarray]:
         n = self.nsamples
-        nans: Callable[int, Sequence[nan]] = curry(repeat, nan)
+        nans: Callable[[int], Sequence[nan]] = curry(repeat, nan)
         for _ in range(first(self.__read_npulses(buffer))):
             n0, n1 = self.__read_pulseinfo(buffer)
             d = self.__read_pulse(buffer, count=n1)
@@ -154,9 +155,9 @@ class LmaDeserializer(Deserializer):
         :param buffer: binary buffer
         :return: dict
         """
-        event = self.__read_event(buffer)
+        event = tuple(self.__read_event(buffer))
         return {'tag': event[0],
-                'horpos': event[1],
+                # 'horpos': event[1],
                 'channels': tuple(
                     pipe(self.__read_pulses(buffer),
                          map(lambda pulse: ch['gain']*(pulse-ch['baseline'])),
@@ -185,7 +186,7 @@ class ReadWith:
     def __enter__(self):
         return self
 
-    def __exit__(self) -> None:
+    def __exit__(self, *args) -> None:
         self.__file.close()
 
     @property
@@ -194,7 +195,8 @@ class ReadWith:
 
     @property
     def first_bit(self) -> int:
-        return self.deserializer.header_size
+        ret: int = self.deserializer.header_size
+        return ret
 
     @property
     def last_bit(self) -> int:
@@ -219,8 +221,9 @@ class ReadWith:
     def __next__(self) -> Mapping[str, Any]:
         if not (self.current_bit < self.last_bit):
             raise StopIteration
-        return self.deserializer(self.__file)
+        ret: Mapping[str, Any] = self.deserializer(self.__file)
+        return ret
 
-LmaReader = ReadWith(LmaDeserializer)
-# HitReader = ReadWith(HitDeserializer)
-# BinReader = ReadWith(BinDeserializer)
+LmaReader: Callable[[str], ReadWith] = ReadWith(LmaDeserializer)
+# HitReader: Callable[[str], ReadWith] = ReadWith(HitDeserializer)
+# BinReader: Callable[[str], ReadWith] = ReadWith(BinDeserializer)
