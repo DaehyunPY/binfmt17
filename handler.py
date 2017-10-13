@@ -6,12 +6,11 @@ Created on Fri Feb 17 14:10:40 2017
 """
 
 from struct import error
-from struct import Struct as OrigStruct
+from struct import Struct as Struct_
 from numba import jit
-from functools import reduce
 
 
-class Struct(OrigStruct):
+class Struct(Struct_):
     def __init__(self, fmt):
         super().__init__(fmt)
         self.__entries = len(self.unpack(b'\0' * self.size))
