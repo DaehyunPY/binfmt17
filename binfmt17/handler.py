@@ -5,8 +5,8 @@ Created on Fri Feb 17 14:10:40 2017
 @author: daehyun
 """
 
-from struct import error
-from struct import Struct as Struct_
+from struct import error, Struct as Struct_
+
 from numba import jit
 
 

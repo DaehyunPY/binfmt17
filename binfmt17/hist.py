@@ -5,8 +5,9 @@ Created on Fri Feb 17 14:10:40 2017
 @author: daehyun
 """
 
+from warnings import warn
+
 from numpy import histogram, histogram2d, meshgrid, array, float32
-from warnings import warn 
 
 
 class Hist1D:

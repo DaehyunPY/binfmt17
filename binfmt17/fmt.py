@@ -84,7 +84,9 @@ def Deserializer(filename, filter=None):
     return HitDeserializer(filename, filter=filter)
 
 
-class BinData(namedtuple('BinData', 'tag FEL_status FEL_shutter UV_shutter dump4 FEL_intensity delay_motor dump7 dump8 hits t x y')):
+class BinData(
+    namedtuple('BinData',
+               'tag FEL_status FEL_shutter UV_shutter dump4 FEL_intensity delay_motor dump7 dump8 hits t x y')):
     def __new__(cls, tag, FEL_status, FEL_shutter, UV_shutter, dump4, FEL_intensity, delay_motor, dump7, dump8, hits,
                 t=None, x=None, y=None):
         if t is None:
@@ -93,8 +95,10 @@ class BinData(namedtuple('BinData', 'tag FEL_status FEL_shutter UV_shutter dump4
             x = ()
         if y is None:
             y = ()
-        super().__new__(cls, tag, FEL_status, FEL_shutter, UV_shutter, dump4, FEL_intensity, delay_motor, dump7, dump8, hits,
-                        array(t, dtype=float64).reshape(hits), array(x, dtype=float64).reshape(hits), array(y, dtype=float64).reshape(hits))
+        super().__new__(cls, tag, FEL_status, FEL_shutter, UV_shutter, dump4,
+                        FEL_intensity, delay_motor, dump7, dump8, hits,
+                        array(t, dtype=float64).reshape(hits),
+                        array(x, dtype=float64).reshape(hits), array(y, dtype=float64).reshape(hits))
 
 
 class BinDeserializer(Reader):
