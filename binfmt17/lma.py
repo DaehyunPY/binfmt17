@@ -95,7 +95,6 @@ class LmaDeserializer(Deserializer):
     def __init__(self, buffer: BinaryIO) -> None:
         """
         Read header from buffer
-        :param buffer: binary buffer
         """
         super().__init__(buffer)
         self.__header = tuple(read_bin(Struct("=ihhdidhdhIIh"), buffer))
@@ -169,7 +168,7 @@ class ReadWith:
     """
     Binary reader
     Example:
-        LmaReader = ReadWith(LmaDeserializer)
+        LmaReader = partial(ReadWith, LmaDeserializer)
         with LmaReader(filename) as r:
             for d in r:
                 print(d)
