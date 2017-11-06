@@ -1,3 +1,23 @@
+import argparse
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument("filename", help="filename or list of filenames. can use wildcards.", nargs='*', type=str, default=["*.hit"])
+clargs = parser.parse_args()
+
+
+from glob import glob
+
+filenames = []
+for fn in clargs.filename:
+    filenames.extend(glob(fn))
+
+filenames = sorted(set(filenames))
+
+if not filenames:
+    raise SystemExit("No filename given.")
+
+
+
 from struct import Struct
 from os.path import splitext
 
@@ -60,7 +80,8 @@ def bin_reader(filename):
 def to_bin(hit_filename, bin_filename=None):
     basename, ext = splitext(hit_filename)
     if ext != '.hit':
-        raise ValueError('It is not HIT file!')
+        print(hit_filename, 'is not a HIT file!')
+        return
     if bin_filename is None:
         bin_filename = '{}.bin'.format(basename)
 
@@ -97,4 +118,9 @@ def to_bin(hit_filename, bin_filename=None):
                 write(pack2(hit['t'], hit['x'], hit['y']))
 
 # %%
-to_bin('aq137.hit')
+for fname in filenames:
+    print("Working on:", fname)
+    to_bin(fname)
+
+
+
