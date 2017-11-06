@@ -1,14 +1,13 @@
-from numpy import fromfile, append, nan, repeat, nan_to_num, ndarray
-from struct import Struct
-from cytoolz import first, curry, pipe
-from cytoolz.curried import reduce, map
+from abc import ABC, abstractmethod
 from operator import add
 from os.path import getsize
-from abc import ABC, abstractmethod
+from struct import Struct
 from typing import Iterator, Any, BinaryIO, Mapping, Sequence, Callable, Iterable
 
+from cytoolz import first, pipe, partial, reduce
+from numpy import fromfile, append, nan, repeat, nan_to_num, ndarray
 
-@curry
+
 def read_bin(struct: Struct, buffer: BinaryIO) -> Iterator[Any]:
     s = struct.size
     r = buffer.read(s)
@@ -96,7 +95,6 @@ class LmaDeserializer(Deserializer):
     def __init__(self, buffer: BinaryIO) -> None:
         """
         Read header from buffer
-        :param buffer: binary buffer
         """
         super().__init__(buffer)
         self.__header = tuple(read_bin(Struct("=ihhdidhdhIIh"), buffer))
@@ -108,10 +106,10 @@ class LmaDeserializer(Deserializer):
             {'fullscale': ch[0], 'offset': ch[1], 'gain': ch[2], 'baseline': ch[3]}
             if ch is not None else None
             for ch in channels)
-        self.__read_event: Callable[[BinaryIO], Mapping[str, Any]] = read_bin(Struct("=id"))
-        self.__read_npulses: Callable[[BinaryIO], Mapping[str, Any]] = read_bin(Struct("=h"))
-        self.__read_pulseinfo: Callable[[BinaryIO], Mapping[str, Any]] = read_bin(Struct("=ii"))
-        self.__read_pulse: Callable[[BinaryIO], Mapping[str, Any]] = curry(fromfile, dtype='int16')
+        self.__read_event: Callable[[BinaryIO], Mapping[str, Any]] = partial(read_bin, Struct("=id"))
+        self.__read_npulses: Callable[[BinaryIO], Mapping[str, Any]] = partial(read_bin, Struct("=h"))
+        self.__read_pulseinfo: Callable[[BinaryIO], Mapping[str, Any]] = partial(read_bin, Struct("=ii"))
+        self.__read_pulse: Callable[[BinaryIO], Mapping[str, Any]] = partial(fromfile, dtype='int16')
 
     @property
     def header_size(self) -> int:
@@ -143,7 +141,7 @@ class LmaDeserializer(Deserializer):
 
     def __read_pulses(self, buffer: BinaryIO) -> Iterator[ndarray]:
         n = self.nsamples
-        nans: Callable[[int], Sequence[nan]] = curry(repeat, nan)
+        nans: Callable[[int], Sequence[nan]] = partial(repeat, nan)
         for _ in range(first(self.__read_npulses(buffer))):
             n0, n1 = self.__read_pulseinfo(buffer)
             d = self.__read_pulse(buffer, count=n1)
@@ -160,18 +158,17 @@ class LmaDeserializer(Deserializer):
                 # 'horpos': event[1],
                 'channels': tuple(
                     pipe(self.__read_pulses(buffer),
-                         map(lambda pulse: ch['gain']*(pulse-ch['baseline'])),
-                         map(nan_to_num),
-                         reduce(add))
+                         partial(map, lambda pulse: ch['gain'] * (pulse - ch['baseline'])),
+                         partial(map, nan_to_num),
+                         partial(reduce, add))
                     if ch is not None else None for ch in self.channels)}
 
 
-@curry
 class ReadWith:
     """
     Binary reader
     Example:
-        LmaReader = ReadWith(LmaDeserializer)
+        LmaReader = partial(ReadWith, LmaDeserializer)
         with LmaReader(filename) as r:
             for d in r:
                 print(d)
@@ -224,6 +221,7 @@ class ReadWith:
         ret: Mapping[str, Any] = self.deserializer(self.__file)
         return ret
 
-LmaReader: Callable[[str], ReadWith] = ReadWith(LmaDeserializer)
-# HitReader: Callable[[str], ReadWith] = ReadWith(HitDeserializer)
-# BinReader: Callable[[str], ReadWith] = ReadWith(BinDeserializer)
+
+LmaReader: Callable[[str], ReadWith] = partial(ReadWith, LmaDeserializer)
+# HitReader: Callable[[str], ReadWith] = partial(ReadWith, HitDeserializer)
+# BinReader: Callable[[str], ReadWith] = partial(ReadWith, BinDeserializer)

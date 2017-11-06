@@ -5,8 +5,8 @@ Created on Fri Feb 17 14:10:40 2017
 @author: daehyun
 """
 
-from struct import error
-from struct import Struct as Struct_
+from struct import error, Struct as Struct_
+
 from numba import jit
 
 
@@ -56,7 +56,13 @@ class Reader:
         self.__structs = [Struct(f) for f in fmts]
         self.current = 0
 
-    def __del__(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self):
         self.__file.close()
 
     @property
