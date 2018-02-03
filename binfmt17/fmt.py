@@ -1,114 +1,101 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Feb 17 14:10:40 2017
+from struct import Struct
+from os.path import splitext
 
-@author: daehyun
-"""
-
-from collections import namedtuple
-from warnings import warn
-
-from numpy import array, uint32, uint16, float64
-
-from .handler import Reader
+from pandas import DataFrame
+from tqdm import tqdm
 
 
-class HitData:
-    __slots__ = ['__tag', '__hits', '__x', '__y', '__t', '__method']
+def hit_reader(filename):
+    deep1 = Struct('=IH')
+    unpack1 = deep1.unpack
+    size1 = deep1.size
+    deep2 = Struct('=dddH')
+    unpack2 = deep2.unpack
+    size2 = deep2.size
 
-    def __init__(self, tag, hits, x=None, y=None, t=None, method=None, filter=None):
-        if x is None: x = []
-        if y is None: y = []
-        if t is None: t = []
-        if method is None: method = []
-        self.__tag = uint32(tag)
-        ret = self.__filter(*self.__reshape(hits, x, y, t, method), filter=filter)
-        self.__hits, self.__x, self.__y, self.__t, self.__method = ret
-
-    def __reshape(self, hits, x, y, t, method):
-        return (uint16(hits),  # hits
-                array(x, dtype=float64).reshape(hits),  # x
-                array(y, dtype=float64).reshape(hits),  # y
-                array(t, dtype=float64).reshape(hits),  # t
-                array(method, dtype=uint16).reshape(hits))  #method
-
-    def __filter(self, hits, x, y, t, method, filter):
-        if filter is None:
-            return hits, x, y, t, method
-        else:
-            idx = filter(x=x, y=y, t=t, method=method)
-            return uint16(idx.sum()), x[idx], y[idx], t[idx], method[idx]
-
-    @property
-    def tag(self):
-        return self.__tag
-
-    @property
-    def hits(self):
-        return self.__hits
-
-    @property
-    def x(self):
-        return self.__x
-
-    @property
-    def y(self):
-        return self.__y
-
-    @property
-    def t(self):
-        return self.__t
-
-    @property
-    def method(self):
-        return self.__method
+    with open(filename, 'br') as f:
+        read = f.read
+        seek = f.seek
+        while read(1):
+            seek(-1, 1)
+            tag, n = unpack1(read(size1))
+            yield {'tag': tag,
+                   'n': n,
+                   'hits': [dict(zip(('x', 'y', 't', 'method'),
+                                     unpack2(read(size2))))
+                            for _ in range(n)]}
 
 
-class HitDeserializer(Reader):
-    def __init__(self, filename, filter=None):
-        super().__init__(filename, *self.fmts)
-        self.__filter = filter
+def bin_reader(filename):
+    deep1 = Struct('=IBBBBddddI')
+    unpack1 = deep1.unpack
+    size1 = deep1.size
+    deep2 = Struct('=ddd')
+    unpack2 = deep2.unpack
+    size2 = deep2.size
 
-    @property
-    def fmts(self):
-        return ['=IH', '=dddH']
-
-    @property
-    def unpacked(self):
-        return HitData(*super().unpacked,  # hits, x, y, t, method
-                    filter=self.__filter)
-
-
-def Deserializer(filename, filter=None):
-    warn("Do not use 'Deserializer'! Redirecting to 'HitDeserializer'")
-    return HitDeserializer(filename, filter=filter)
-
-
-class BinData(
-    namedtuple('BinData',
-               'tag FEL_status FEL_shutter UV_shutter dump4 FEL_intensity delay_motor dump7 dump8 hits t x y')):
-    def __new__(cls, tag, FEL_status, FEL_shutter, UV_shutter, dump4, FEL_intensity, delay_motor, dump7, dump8, hits,
-                t=None, x=None, y=None):
-        if t is None:
-            t = ()
-        if x is None:
-            x = ()
-        if y is None:
-            y = ()
-        super().__new__(cls, tag, FEL_status, FEL_shutter, UV_shutter, dump4,
-                        FEL_intensity, delay_motor, dump7, dump8, hits,
-                        array(t, dtype=float64).reshape(hits),
-                        array(x, dtype=float64).reshape(hits), array(y, dtype=float64).reshape(hits))
+    with open(filename, 'br') as f:
+        read = f.read
+        seek = f.seek
+        while read(1):
+            seek(-1, 1)
+            (tag, fel_status, fel_shutter, user_shutter, _, fel_intensity,
+             delay_motor, _, _, n) = unpack1(read(size1))
+            yield {'tag': tag,
+                   'fel_status': fel_status,
+                   'fel_shutter': fel_shutter,
+                   'user_shutter': user_shutter,
+                   'fel_intensity': fel_intensity,
+                   'delay_motor': delay_motor,
+                   'n': n,
+                   'hits': [dict(zip(('t', 'x', 'y'),
+                                     unpack2(read(size2))))
+                            for _ in range(n)]}
 
 
-class BinDeserializer(Reader):
-    def __init__(self, filename):
-        super().__init__(filename, *self.fmts)
+def __export_as_bin(hit_filename, bin_filename=None):
+    basename, ext = splitext(hit_filename)
+    if ext != '.hit':
+        print(hit_filename, 'is not a HIT file!')
+        return
+    if bin_filename is None:
+        bin_filename = '{}.bin'.format(basename)
 
-    @property
-    def fmts(self):
-        return ['=IBBBBddddI', '=ddd']
+    print('Reading tag list...')
+    tags = tuple(d['tag'] for d in tqdm(hit_reader(hit_filename)))
 
-    @property
-    def unpacked(self):
-        return BinData(*super().unpacked)
+    hi = 201701
+    equips = {
+        'fel_status': ('xfel_mon_ct_bl1_dump_1_beamstatus/summary', 'uint8'),
+        'fel_shutter': ('xfel_bl_1_shutter_1_open_valid/status', 'uint8'),
+        'user_shutter': ('xfel_bl_1_lh1_shutter_1_open_valid/status', 'uint8'),
+        'fel_intensity': ('xfel_bl_1_tc_gm_2_pd_fitting_peak/voltage', 'float64'),
+        'delay_motor': ('xfel_bl_1_st_4_motor_22/position', 'float64')}
+    print('Reading meta data...')
+    meta = DataFrame({k: array(read_syncdatalist_float(equip, hi, tags), dtype=dtype)
+                      for k, (equip, dtype) in equips.items()},
+                     index=tags)
+    at = meta.at   
+
+    deep1 = Struct('=IBBBBddddI')
+    pack1 = deep1.pack
+    deep2 = Struct('=ddd')
+    pack2 = deep2.pack
+
+    with open(bin_filename, 'bw') as f:
+        write = f.write
+        print('Exporting BIN files...')
+        for d in tqdm(hit_reader('aq137.hit'), total=len(meta)):
+            tag = d['tag']
+            write(pack1(tag, at[tag, 'fel_status'], at[tag, 'fel_shutter'],
+                        at[tag, 'user_shutter'], 0, at[tag, 'fel_intensity'],
+                        at[tag, 'delay_motor'], 0, 0, d['n']))
+            for hit in d['hits']:
+                write(pack2(hit['t'], hit['x'], hit['y']))
+
+
+def export_as_bin(*args, **kwargs):
+    from dbpy import read_syncdatalist_float
+
+    export_as_bin = __export_as_bin
+    return __export_as_bin(*args, **kwargs)

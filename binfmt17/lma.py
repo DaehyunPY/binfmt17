@@ -2,7 +2,8 @@ from abc import ABC, abstractmethod
 from operator import add
 from os.path import getsize
 from struct import Struct
-from typing import Iterator, Any, BinaryIO, Mapping, Sequence, Callable, Iterable
+from typing import (Iterator, Any, BinaryIO, Mapping, Sequence, Callable,
+                    Iterable)
 
 from cytoolz import first, pipe, partial, reduce
 from numpy import fromfile, append, nan, repeat, nan_to_num, ndarray
